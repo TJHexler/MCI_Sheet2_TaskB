@@ -1,0 +1,295 @@
+<html>
+    <head>
+        <title>Human Capabilities - Reaction test - Task B.3</title>
+        <style>
+body {
+    font-family: sans-serif;
+}
+#stimulus {
+    height: 40px;
+}
+        </style>
+    </head>
+   <body>
+        <h1 id="title">User Study for Task B.3</h1>
+        <h2 id="instruction">Welcome to the user study of task B.3! Guess the nationality of the food. Press 'd' for Germany, 'f' for China or 'g' for Mexico.Press space to start!</h2>
+        <div id="stimulus"></div>
+        <p id="time"></p>
+        <p id="count"></p>
+        <p id="mean"></p>
+        <p id="sd"></p>
+        <p id="errorRateGermany"></p>
+        <p id="errorRateChina"></p>
+        <p id="errorRateMexico"></p>
+
+        <script>
+// if true, the experiment is currently active
+let experimentActive = false;
+
+// if true, the stimulus is currently visible and the user should press space
+let stimulusIsVisible = false;
+
+// time at which the stimulus last appeared (in milliseconds, see Date.now())
+let stimulusTimestamp;
+
+// ID of the timeout that is scheduled to make the stimulus appear.
+// Used to cancel tests when the experiment ends.
+let testStimulusTimeout;
+
+// recorded reaction times in milliseconds
+let times = [];
+let timesWithoutErrors = [];
+
+// nationality of dish which is currently shown
+let nationality = '';
+
+// recorded errors for nationality
+let errorGermany = 0;
+let errorChina = 0;
+let errorMexico = 0;
+
+// pictures array
+let pictures = [
+                'pictures/d1.jpeg', 'pictures/d2.jpeg', 'pictures/d3.jpeg', 'pictures/d4.jpeg',
+                'pictures/d5.jpg', 'pictures/d6.jpg', 'pictures/d7.avif', 'pictures/d8.jpg',
+                'pictures/d9.jpg', 'pictures/d10.jpg', 'pictures/c1.jpeg', 'pictures/c2.jpeg', 
+                'pictures/c3.jpeg', 'pictures/c4.jpeg', 'pictures/c5.jpeg', 'pictures/c6.jpeg', 
+                'pictures/c7.jpeg', 'pictures/c8.jpeg', 'pictures/c9.jpeg', 'pictures/c10.jpeg', 
+                'pictures/m1.jpeg', 'pictures/m2.jpeg', 'pictures/m3.jpeg', 'pictures/m4.jpeg', 
+                'pictures/m5.jpeg', 'pictures/m6.jpeg', 'pictures/m7.jpeg', 'pictures/m8.jpeg', 
+                'pictures/m9.jpeg', 'pictures/m10.jpeg'
+            ];
+pictures.sort(() => Math.random() - 0.5);
+let pictureIndex = 0;
+
+// DOM elements
+let timeElement = document.getElementById('time');
+let countElement = document.getElementById('count');
+let meanElement = document.getElementById('mean');
+let stdDevElement = document.getElementById('sd');
+let instructionElement = document.getElementById('instruction');
+let stimulusElement = document.getElementById('stimulus');
+let errorRateElementGermany = document.getElementById('errorRateGermany');
+let errorRateElementChina = document.getElementById('errorRateChina');
+let errorRateElementMexico = document.getElementById('errorRateMexico');
+
+function getMean(data) {
+    let sum = 0;
+    for (let value of data) sum += value;
+    return sum / data.length;
+}
+
+function getStandardDeviation(data) {
+    let mean = getMean(data);
+    let squareSum = 0;
+    for (let value of data) squareSum += (value - mean) ** 2;
+    return Math.sqrt(squareSum / data.length);
+}
+
+function clearResults() {
+    timeElement.textContent = '';
+    countElement.textContent = '';
+    meanElement.textContent = '';
+    stdDevElement.textContent = '';
+    errorRateElementGermany.textContent = '';
+    errorRateElementChina.textContent = '';
+    errorRateElementMexico.textContent = '';
+    
+}
+
+function showResults() {
+    stimulusElement.innerHTML = '';
+    //create times array without errors
+    for (let i = 0; i < times.length; i++) {
+        if (times[i] !== -1) {
+            timesWithoutErrors.push(times[i]);
+        }
+    }
+
+    let meanDeltaTime = getMean(timesWithoutErrors);
+    let stdDev = getStandardDeviation(timesWithoutErrors);
+
+    countElement.textContent = 'Count: ' + times.length;
+    meanElement.textContent = 'Mean: ' + Math.round(meanDeltaTime) + ' ms';
+    stdDevElement.textContent = 'SD: ' + Math.round(stdDev) + ' ms';
+
+    errorRateElementGermany.textContent = 'You got ' + (10 - errorGermany) + ' out of 10 for the category of german food right.';
+    errorRateElementChina.textContent = 'You got ' + (10 - errorChina) + ' out of 10 for the category of chinese food right.';
+    errorRateElementMexico.textContent = 'You got ' + (10 - errorMexico) + ' out of 10 for the category of mexican food right.';
+
+}
+
+function setStimulus(pictureName) {
+    // Leeren des stimulusElement-Inhalts, falls ein vorheriges Bild vorhanden ist
+    stimulusElement.innerHTML = '';
+
+    if (pictureName) {
+        // Erstellen eines Bild-Elements
+        let img = document.createElement('img');
+        img.src = pictureName;
+        img.alt = 'Stimulus';
+
+        // set size of picture
+        img.style.width = '512px';
+
+        // Hinzufügen des Bild-Elements zum stimulusElement
+        stimulusElement.appendChild(img);
+    }
+
+}
+
+function startTestTrial() {
+    // reset the stimulus
+    setStimulus('');
+    stimulusIsVisible = false;
+
+    // schedule the stimulus to appear after a random amount of time
+    let timeToWaitInSeconds = Math.random() * 4 + 2; // 2 - 6s
+    testStimulusTimeout = setTimeout(showStimulus, timeToWaitInSeconds * 1000);
+}
+
+function showStimulus() {
+    timeElement.textContent = '';
+    setStimulus(pictures[pictureIndex]);
+
+    // check nationality
+    let regexD = /^pictures\/d/;
+    let regexC = /^pictures\/c/;
+    let regexM = /^pictures\/m/;
+    if (regexD.test(pictures[pictureIndex])) {
+        nationality = 'd';
+    } else if (regexC.test(pictures[pictureIndex])) {
+        nationality = 'c';
+    } else if (regexM.test(pictures[pictureIndex])) {
+        nationality = 'm';
+    }
+
+    pictureIndex = pictureIndex + 1;
+    stimulusIsVisible = true;
+    stimulusTimestamp = Date.now();
+}
+
+function recordStimulusReactionTime() {
+    let deltaTime = Date.now() - stimulusTimestamp;
+    times.push(deltaTime);
+    timeElement.textContent = deltaTime + ' ms';
+}
+
+function startExperiment() {
+    clearResults(); // clear results of any previous tests
+    instructionElement.textContent = "Guess the nationality of the food. Press 'd' for Germany, 'f' for China or 'g' for Mexico.";
+
+    // reset data and start tests
+    times = [];
+    experimentActive = true;
+    startTestTrial();
+}
+
+function stopExperiment() {
+    // cancel any ongoing tests
+    clearTimeout(testStimulusTimeout);
+    stimulusIsVisible = false;
+    experimentActive = false;
+
+    // reset instruction and show results
+    instruction.textContent = "Welcome to the user study of task B.3! Guess the nationality of the food. Press 'd' for Germany, 'f' for China or 'g' for Mexico.Press space to start!";
+    showResults();
+}
+
+window.addEventListener('keydown', (event) => {
+    if (event.key === ' ') {
+        // the user pressed the space key
+        if (!experimentActive) {
+            // start the experiment if it wasn't active
+            startExperiment();
+            return;
+        }
+    } else if (event.key === 'a') {
+        if (experimentActive) {
+            // stop the experiment and show results
+            stopExperiment();
+        }
+    }
+    if (event.key === 'd') {
+        // the user pressed d for german nationality
+        if (experimentActive) {
+            if (stimulusIsVisible && (nationality == 'd')) {
+                // record reaction time
+                recordStimulusReactionTime();
+                // start next trial
+                if (times.length < 30) {
+                    startTestTrial();
+                } else {
+                    stopExperiment();
+                }
+            } else {
+                //error user pressed button too early or wrong nationality!
+                times.push(-1);
+                errorGermany++;
+                timeElement.textContent = 'Wrong!';
+                // check if experiment ends
+                if (times.length < 30) {
+                    startTestTrial();
+                } else {
+                    stopExperiment();
+                }
+                
+            }
+        }
+    }
+    if (event.key === 'f') {
+        // the user pressed f for chinese nationality
+        if (experimentActive) {
+            if (stimulusIsVisible && (nationality == 'c')) {
+                // record reaction time
+                recordStimulusReactionTime();
+                // start next trial
+                if (times.length < 30) {
+                    startTestTrial();
+                } else {
+                    stopExperiment();
+                }
+            } else {
+                //error user pressed button too early or wrong nationality!
+                times.push(-1);
+                errorChina++;
+                timeElement.textContent = 'Wrong!';
+                // check if experiment ends
+                if (times.length < 30) {
+                    startTestTrial();
+                } else {
+                    stopExperiment();
+                }
+            }
+        }
+    }
+    if (event.key === 'g') {
+        // the user pressed g for mexican nationality
+        if (experimentActive) {
+            if (stimulusIsVisible && (nationality == 'm')) {
+                // record reaction time
+                recordStimulusReactionTime();
+                // start next trial
+                if (times.length < 30) {
+                    startTestTrial();
+                } else {
+                    stopExperiment();
+                }
+            } else {
+                //error user pressed button too early or wrong nationality!
+                times.push(-1);
+                errorMexico++;
+                timeElement.textContent = 'Wrong!';
+                // check if experiment ends
+                if (times.length < 30) {
+                    startTestTrial();
+                } else {
+                    stopExperiment();
+                }
+            }
+        }
+    }
+});
+      </script>
+   </body>
+</html>

@@ -1,0 +1,242 @@
+<html>
+    <head>
+        <title>Human Capabilities - Reaction test for task B1</title>
+        <style>
+body {
+    font-family: sans-serif;
+}
+#stimulus {
+    height: 40px;
+    width: 120px;
+}
+        </style>
+    </head>
+   <body>
+        <h1 id="title">User Study Task B.1</h1>
+        <h2 id="instruction">Press space to start!</h2>
+        <div id="stimulus"></div>
+        <p id="time"></p>
+        <p id="count"></p>
+        <p id="mean"></p>
+        <p id="sd"></p>
+        <p id="error rate"></p>
+        <p id="correlation"></p>
+
+        <script>
+// if true, the experiment is currently active
+let experimentActive = false;
+
+// if true, the stimulus is currently visible and the user should press space
+let stimulusIsVisible = false;
+
+// time at which the stimulus last appeared (in milliseconds, see Date.now())
+let stimulusTimestamp;
+
+// ID of the timeout that is scheduled to make the stimulus appear.
+// Used to cancel tests when the experiment ends.
+let testStimulusTimeout;
+
+// recorded reaction times in milliseconds
+let times = [];
+let timesWithoutErrors = [];
+
+// recorded distances of stimulus to center of screen
+let distances = [];
+let distancesWithoutErrors = [];
+
+// DOM elements
+let timeElement = document.getElementById('time');
+let countElement = document.getElementById('count');
+let meanElement = document.getElementById('mean');
+let stdDevElement = document.getElementById('sd');
+let instructionElement = document.getElementById('instruction');
+let stimulusElement = document.getElementById('stimulus');
+let errorRateElement = document.getElementById('error rate');
+let correlationElement = document.getElementById('correlation');
+let screenWidth = window.innerWidth;
+let screenHeight = window.innerHeight;
+
+let centerX = window.innerWidth / 2;
+let centerY = window.innerHeight / 2;
+
+function getMean(data) {
+    let sum = 0;
+    for (let value of data) sum += value;
+    return sum / data.length;
+}
+
+function getStandardDeviation(data) {
+    let mean = getMean(data);
+    let squareSum = 0;
+    for (let value of data) squareSum += (value - mean) ** 2;
+    return Math.sqrt(squareSum / data.length);
+}
+
+function clearResults() {
+    timeElement.textContent = '';
+    countElement.textContent = '';
+    meanElement.textContent = '';
+    stdDevElement.textContent = '';
+}
+
+function getCorrelation(arr1, arr2) {
+    if (arr1.length !== arr2.length) {
+        throw new Error('Arrays müssen die gleiche Länge haben.');
+    }
+
+    // Mittelwerte berechnen
+    let mean1 = arr1.reduce((acc, val) => acc + val, 0) / arr1.length;
+    let mean2 = arr2.reduce((acc, val) => acc + val, 0) / arr2.length;
+
+    // Kovarianz berechnen
+    let covariance = 0;
+    for (var i = 0; i < arr1.length; i++) {
+        covariance += (arr1[i] - mean1) * (arr2[i] - mean2);
+    }
+    covariance /= arr1.length;
+
+    // Standardabweichungen berechnen
+    let stdDev1 = Math.sqrt(arr1.map(val => Math.pow(val - mean1, 2)).reduce((acc, val) => acc + val, 0) / arr1.length);
+    let stdDev2 = Math.sqrt(arr2.map(val => Math.pow(val - mean2, 2)).reduce((acc, val) => acc + val, 0) / arr2.length);
+
+    // Korrelationskoeffizient berechnen
+    let correlationCoefficient = covariance / (stdDev1 * stdDev2);
+
+    return correlationCoefficient;
+}
+
+function showResults() {
+    //make stimulus disappear
+    stimulusElement.style.transition = '';
+    stimulusElement.style.backgroundColor = 'transparent';
+
+    //create times array without errors
+    for (let i = 0; i < times.length; i++) {
+        if (times[i] !== -1) {
+            timesWithoutErrors.push(times[i]);
+            distancesWithoutErrors.push(distances[i]);
+        }
+    }
+
+    let meanDeltaTime = getMean(timesWithoutErrors);
+    let stdDev = getStandardDeviation(timesWithoutErrors);
+
+    countElement.textContent = 'Count: ' + times.length;
+    meanElement.textContent = 'Mean: ' + Math.round(meanDeltaTime) + ' ms';
+    stdDevElement.textContent = 'Standard Deviation: ' + Math.round(stdDev) + ' ms';
+
+    let errorRate = (times.length - timesWithoutErrors.length) / times.length * 100;
+    errorRate = Math.round(errorRate * 100) / 100;
+    errorRateElement.textContent = 'Error Rate: ' + errorRate + '%';
+
+    let correlation = getCorrelation(timesWithoutErrors, distancesWithoutErrors);
+    correlation = Math.round(correlation * 10000) / 10000;
+    correlationElement.textContent = 'Correlation of reaction time and distance of stimulus to center of screen: ' + correlation;
+}
+
+function setStimulusColor(newColor) {
+    stimulusElement.style.transition = '';
+    stimulusElement.style.backgroundColor = newColor;
+}
+
+function fadeStimulusColor(newColor) {
+    stimulusElement.style.transition = 'background-color 10s';
+    stimulusElement.style.backgroundColor = newColor;
+}
+
+function startTestTrial() {
+    // reset the stimulus
+    setStimulusColor('white');
+    stimulusIsVisible = false;
+
+    // schedule the stimulus to appear after a random amount of time
+    let timeToWaitInSeconds = Math.random() * 4 + 2; // 2 - 6s
+    testStimulusTimeout = setTimeout(showStimulus, timeToWaitInSeconds * 1000);
+}
+
+function showStimulus() {
+    //random position
+    let randomX = Math.random() * (screenWidth - stimulusElement.offsetWidth);
+    let randomY = Math.random() * (screenHeight - stimulusElement.offsetHeight);
+
+    //place stimulus
+    stimulusElement.style.position = 'absolute';
+    stimulusElement.style.left = randomX + 'px';
+    stimulusElement.style.top = randomY + 'px'
+
+    //store distance of stimulus to center of screen
+    let distance = Math.sqrt(Math.pow(centerX - randomX, 2) + Math.pow(centerY - randomY, 2));
+    distances.push(distance);
+
+    fadeStimulusColor('red');
+    stimulusIsVisible = true;
+    stimulusTimestamp = Date.now();
+}
+
+function recordStimulusReactionTime() {
+    let deltaTime = Date.now() - stimulusTimestamp;
+    times.push(deltaTime);
+    timeElement.textContent = deltaTime + ' ms';
+}
+
+function startExperiment() {
+    clearResults(); // clear results of any previous tests
+    instructionElement.textContent = "Press space when you can see the rectangle!";
+
+    // reset data and start tests
+    times = [];
+    experimentActive = true;
+    startTestTrial();
+}
+
+function stopExperiment() {
+    // cancel any ongoing tests
+    clearTimeout(testStimulusTimeout);
+    stimulusIsVisible = false;
+    experimentActive = false;
+
+    // reset instruction and show results
+    instruction.textContent = 'Thank you for particitating in our experiment! Feel free to start again by pressing space!';
+    showResults();
+}
+
+window.addEventListener('keydown', (event) => {
+    if (event.key === ' ') {
+        // the user pressed the space key
+        if (!experimentActive) {
+            // start the experiment if it wasn't active
+            startExperiment();
+            return;
+        }
+
+        if (stimulusIsVisible) {
+            // record reaction time
+            recordStimulusReactionTime();
+            // start next trial
+            if (times.length < 30) {
+                startTestTrial();
+            } else {
+                stopExperiment();
+            }
+            
+        } else if (times.length < 30) {
+            //error
+            times.push(-1);
+            timeElement.textContent = 'Wrong!';
+            startTestTrial();
+        } else {
+            //error and end of experiment
+            times.push(-1);
+            timeElement.textContent = 'Wrong!';
+            stopExperiment();
+        }
+    } else if (event.key === 'a') {
+        if (experimentActive) {
+            // stop the experiment and show results
+            stopExperiment();
+        }
+    }
+});
+      </script>
+   </body>
+</html>
