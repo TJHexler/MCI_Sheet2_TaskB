@@ -1,0 +1,280 @@
+<html>
+    <head>
+        <title>Human Capabilities - Reaction test</title>
+        <style>
+body {
+    font-family: sans-serif;
+}
+
+        </style>
+    </head>
+   <body>
+        <h1 id="title">User Study</h1>
+        <h2 id="instruction" style="font-size: large;">
+            You will now see either a square or a triangle, either colored orange or purple. 
+            Press space when when you see a square (purple or orange). <br>Don't press space when a triangle is shown, this will be counted as an error.<br> 
+            The triangles will stay for up to 6 seconds. To skip this time, press 's'.
+            Press space to start!</h2>
+        <div id="stimulus"></div>
+        <p id="answer"></p>
+        <p id="time"></p>
+        <p id="count"></p>
+        <p id="mean"></p>
+        <p id="sd"></p>
+        <p id="errors"></p>
+
+        <script>
+// if true, the experiment is currently active
+let experimentActive = false;
+
+// if true, the stimulus is currently visible and the user should press space
+let stimulusIsVisible = false;
+
+// time at which the stimulus last appeared (in milliseconds, see Date.now())
+let stimulusTimestamp;
+
+// ID of the timeout that is scheduled to make the stimulus appear.
+// Used to cancel tests when the experiment ends.
+let testStimulusTimeout;
+
+let noPressTimeout;
+
+let trials = 0;
+let squareCounter = 0;
+let purpleCounter = 0;
+let orangeCounter = 0;
+
+// recorded reaction times in milliseconds
+let times = [];
+let orangeTimes = [];
+let purpleTimes = [];
+
+
+// DOM elements
+let timeElement = document.getElementById('time');
+let countElement = document.getElementById('count');
+let meanElement = document.getElementById('mean');
+let stdDevElement = document.getElementById('sd');
+let instructionElement = document.getElementById('instruction');
+let stimulusElement = document.getElementById('stimulus');
+let answerElement = document.getElementById('answer');
+let errorElement = document.getElementById('errors');
+
+let shapeIsTriangle = false;
+let colorIsOrange = false;
+let errorCount = 0;
+let errorCountOrange = 0;
+let errorCountPurple = 0;
+
+
+
+function getMean(data) {
+    let sum = 0;
+    for (let value of data) sum += value;
+    return sum / data.length;
+}
+
+function getStandardDeviation(data) {
+    let mean = getMean(data);
+    let squareSum = 0;
+    for (let value of data) squareSum += (value - mean) ** 2;
+    return Math.sqrt(squareSum / data.length);
+}
+
+function clearResults() {
+    timeElement.textContent = '';
+    countElement.textContent = '';
+    meanElement.textContent = '';
+    stdDevElement.textContent = '';
+    errorElement.textContent = '';
+}
+
+function showResults() {
+    let meanDeltaTime = getMean(times);
+    let stdDev = getStandardDeviation(times);
+    let errorRate = Math.round((errorCount / times.length) * 10000) / 100;
+    let errorRateOrange = Math.round((errorCountOrange / orangeTimes.length) * 10000) / 100;
+    let errorRatePurple = Math.round((errorCountPurple / purpleTimes.length) * 10000) / 100;
+    let meanOrangeTime = getMean(orangeTimes);
+    let meanPurpleTime = getMean(purpleTimes);
+    let orangeStdDev = getStandardDeviation(orangeTimes);
+    let purpleStdDev = getStandardDeviation(purpleTimes);
+
+    answerElement.textContent = 'Finished!';
+    meanElement.textContent = 'Overall mean: ' + Math.round(meanDeltaTime) + ' ms; Orange mean: ' + Math.round(meanOrangeTime) + ' ms; Purple mean: ' + Math.round(meanPurpleTime) +' ms';
+    stdDevElement.textContent = 'Overall SD: ' + Math.round(stdDev) + ' ms; Orange SD: ' + Math.round(orangeStdDev) + ' ms; Purple SD: ' + Math.round(purpleStdDev) + ' ms';
+    errorElement.textContent = 'Overall error rate: ' + errorRate + ' %; Orange error rate: ' + errorRateOrange + ' %; Purple error rate: ' + errorRatePurple + ' %';
+
+}
+
+function setStimulusColor(newColor) {
+    stimulusElement.style.backgroundColor = newColor;
+}
+
+function startTestTrial() {
+    // reset the stimulus
+    stimulusIsVisible = false;
+    clearTimeout(noPressTimeout);
+
+    // schedule the stimulus to appear after a random amount of time
+    let timeToWaitInSeconds = Math.random() * 4 + 2; // 2 - 6s
+    testStimulusTimeout = setTimeout(showStimulus, timeToWaitInSeconds * 1000);
+}
+
+function showStimulus() {
+    trials = trials + 1;
+    answerElement.textContent = "";
+    //0 for square, 1 for triangle
+    let shape = Math.round(Math.random());
+    //0 for orange, 1 for purple
+    let stimColor = Math.round(Math.random());
+    if (shape == 0){
+        squareCounter = squareCounter + 1;
+        shapeIsTriangle = false;
+        let size = Math.floor(Math.random() * (300 - 100 + 1) + 100);
+        stimulusElement.style.width = size;
+        stimulusElement.style.height = size;
+        stimulusElement.style.borderBottomColor = 'transparent';
+        stimulusElement.style.borderWidth = '0px';
+        if(stimColor == 0){
+            setStimulusColor('orange');
+            colorIsOrange = true;
+            orangeCounter = orangeCounter + 1;
+        }
+        else if (stimColor == 1){
+            setStimulusColor('purple');
+            colorIsOrange = false;
+            purpleCounter = purpleCounter + 1;
+        }
+
+    }
+    else if (shape == 1){
+        shapeIsTriangle = true;
+        let sideBorder = Math.floor(Math.random() * (150 - 50 + 1) + 50);
+        let bottomBorder = sideBorder * 1.73;
+        setStimulusColor('transparent');
+        stimulusElement.style.width = '0px';
+        stimulusElement.style.height = '0px';
+        stimulusElement.style.borderStyle = 'solid';
+        stimulusElement.style.borderTopWidth = '0px';
+        stimulusElement.style.borderLeftWidth = sideBorder;
+        stimulusElement.style.borderRightWidth = sideBorder;
+        stimulusElement.style.borderBottomWidth = bottomBorder;
+        stimulusElement.style.borderColor = 'transparent transparent transparent transparent';
+        if (stimColor == 0){
+            stimulusElement.style.borderBottomColor = 'orange';
+            colorIsOrange = true;
+            orangeCounter = orangeCounter + 1;
+        }
+        else if (stimColor == 1){
+            stimulusElement.style.borderBottomColor = 'purple';
+            colorIsOrange = false;
+            orangeCounter = orangeCounter + 1;
+        }
+
+        setTimeout(triangleTimeout, 0);
+
+    }
+    stimulusIsVisible = true;
+    stimulusTimestamp = Date.now();
+}
+
+function triangleTimeout(){
+    let triangleTime = Math.random() * 4 + 2; //2 - 6s
+    noPressTimeout = setTimeout(startTestTrial, triangleTime * 1000);
+}
+
+function recordStimulusReactionTime() {
+    let deltaTime = Date.now() - stimulusTimestamp;
+    times.push(deltaTime);
+    if (colorIsOrange == true){
+        orangeTimes.push(deltaTime);
+    }
+    else if (colorIsOrange == false){
+        purpleTimes.push(deltaTime);
+    }
+    timeElement.textContent = deltaTime + ' ms';
+}
+
+function startExperiment() {
+    clearResults(); // clear results of any previous tests
+    instructionElement.textContent = "Press space when you see a square. To show results, press 'a'!";
+
+    // reset data and start tests
+    times = [];
+    orangeTimes = [];
+    purpleTimes = [];
+    trials = 0;
+    squareCounter = 0;
+    purpleCounter = 0;
+    orangeCounter = 0;
+    errorCount = 0;
+    errorCountOrange = 0;
+    errorCountPurple = 0;
+    experimentActive = true;
+    startTestTrial();
+}
+
+function stopExperiment() {
+    // cancel any ongoing tests
+    clearTimeout(testStimulusTimeout);
+    clearTimeout(noPressTimeout);
+    stimulusIsVisible = false;
+    experimentActive = false;
+
+    // reset instruction and show results
+    instruction.textContent = 'Press space to start!';
+    showResults();
+}
+
+window.addEventListener('keydown', (event) => {
+    if (event.key === ' ') {
+        // the user pressed the space key
+        if (!experimentActive) {
+            // start the experiment if it wasn't active
+            startExperiment();
+            return;
+        }
+
+        if (stimulusIsVisible) {
+            if (shapeIsTriangle == false){
+                // record reaction time
+                recordStimulusReactionTime();
+                answerElement.textContent = "Correct!";
+                if (squareCounter == 30){
+                    stopExperiment();
+                }else{
+                // start next trial
+                startTestTrial();
+                }
+            }
+            else if (shapeIsTriangle == true){
+                //error counter +1
+                errorCount = errorCount + 1;
+                if (colorIsOrange == true){
+                    errorCountOrange = errorCountOrange + 1;
+                }
+                else if (colorIsOrange == false){
+                    errorCountPurple = errorCountPurple + 1;
+                }
+                answerElement.textContent = "Wrong!";
+                startTestTrial();
+            }
+        }
+    } else if (event.key === 'a') {
+        if (experimentActive) {
+            // stop the experiment and show results
+            stopExperiment();
+        }
+    }  else if (event.key === 's') {
+        if (shapeIsTriangle == true){
+            answerElement.textContent = 'Skipped';
+            //skip triangle wait time
+            startTestTrial();
+        }
+
+    }
+});
+      </script>
+   </body>
+</html>
